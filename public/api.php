@@ -7,6 +7,7 @@ header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 const MAX_ATTACHMENTS = 12;
 const MAX_ATTACHMENT_BYTES = 31457280;
 const MEMBER_TTL_SECONDS = 70;
+const MEMBER_HEARTBEAT_SECONDS = 15;
 const ROOM_NAME_MAX_LENGTH = 60;
 
 $storageDir = __DIR__ . DIRECTORY_SEPARATOR . 'storage';
@@ -176,12 +177,17 @@ function withState(string $stateFile, callable $callback): array
             $state = ['rooms' => []];
         }
 
+        $beforeWrite = json_encode($state, JSON_UNESCAPED_SLASHES);
+
         $response = $callback($state);
 
-        ftruncate($handle, 0);
-        rewind($handle);
-        fwrite($handle, json_encode($state, JSON_UNESCAPED_SLASHES));
-        fflush($handle);
+        $afterWrite = json_encode($state, JSON_UNESCAPED_SLASHES);
+        if ($beforeWrite !== $afterWrite) {
+            ftruncate($handle, 0);
+            rewind($handle);
+            fwrite($handle, $afterWrite === false ? '{"rooms":[]}' : $afterWrite);
+            fflush($handle);
+        }
         flock($handle, LOCK_UN);
 
         return $response;
@@ -288,10 +294,22 @@ function generateUniqueRoomCode(array $rooms): string
 
 function touchMember(array &$room, string $clientId): void
 {
+    $now = time();
+    $existing = isset($room['members'][$clientId]) && is_array($room['members'][$clientId])
+        ? $room['members'][$clientId]
+        : null;
+
+    $lastSeenAt = $existing !== null && isset($existing['lastSeenAt']) ? (int) $existing['lastSeenAt'] : 0;
+    if ($existing !== null && ($now - $lastSeenAt) < MEMBER_HEARTBEAT_SECONDS) {
+        return;
+    }
+
     $room['members'][$clientId] = [
         'id' => $clientId,
-        'label' => 'Member-' . substr($clientId, -4),
-        'lastSeenAt' => time(),
+        'label' => $existing !== null && isset($existing['label'])
+            ? (string) $existing['label']
+            : 'Member-' . substr($clientId, -4),
+        'lastSeenAt' => $now,
     ];
 }
 
