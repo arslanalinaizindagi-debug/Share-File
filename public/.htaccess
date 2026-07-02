@@ -1,0 +1,4 @@
+DirectoryIndex index.php index.html
+<FilesMatch "^(api\.php|index\.php|index\.html)$">
+  Require all granted
+</FilesMatch>

@@ -1,0 +1,37 @@
+PHP Hosting Upload Steps
+
+1. Open your hosting file manager or FTP.
+2. Go to your site root folder, usually public_html or htdocs.
+3. Delete old files from that folder if this is a fresh deploy.
+4. Upload the contents of the upload package zip into the root folder.
+5. After extract, these files must exist in the root:
+   - index.php
+   - index.html
+   - app.js
+   - style.css
+   - api.php
+   - .htaccess
+   - storage/rooms.json
+   - storage/.htaccess
+6. Make sure storage/ is writable by PHP. If permissions are available, use 755 or 775 for folder and 664 for rooms.json.
+7. Open your domain in browser.
+8. Test this flow:
+   - Generate room
+   - Join room
+   - Change room name
+   - Open same domain in another tab and join same room
+
+Custom Domain Mapping
+
+1. Add domain in your hosting control panel.
+2. Hosting will show nameservers or DNS records.
+3. In your domain registrar panel, point the domain to the hosting nameservers or apply the given A/CNAME records.
+4. Wait for DNS propagation.
+5. Re-open the domain and test the app.
+
+Important
+
+- This PHP version uses polling through api.php, not Node.js.
+- server.js is not needed on PHP hosting.
+- storage/rooms.json keeps room data on the server.
+- If you want a clean first deploy, use the upload package zip because it contains an empty rooms.json.

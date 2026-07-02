@@ -1,0 +1,7 @@
+node_modules/
+php-upload-temp/
+php-hosting-upload.zip
+.env
+.DS_Store
+Thumbs.db
+public/storage/rooms.json

@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Live Text Sync</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main class="container">
+      <h1>Easy Live Text Share</h1>
+      <p class="subtitle">Simple flow: room number lo, share karo, aur har device par live updates dekho.</p>
+
+      <section class="onboarding" aria-label="How to use">
+        <article class="step-card">
+          <p class="step-number">Step 1</p>
+          <h2>Create Ya Enter Match Number</h2>
+          <p>Generate dabao ya existing number likho.</p>
+        </article>
+        <article class="step-card">
+          <p class="step-number">Step 2</p>
+          <h2>Join Same Room</h2>
+          <p>Dusre device par wahi number use karo.</p>
+        </article>
+        <article class="step-card">
+          <p class="step-number">Step 3</p>
+          <h2>Start Sharing Instantly</h2>
+          <p>Text, notes, files aur code realtime sync honge.</p>
+        </article>
+      </section>
+
+      <section class="workspace-grid">
+        <aside class="panel">
+          <h2 class="section-title">Room Setup</h2>
+          <label>
+            Match Number
+            <input id="roomInput" type="text" maxlength="24" placeholder="Auto-generated unique number" />
+          </label>
+          <section class="room-identity" aria-label="Current room identity">
+            <p><strong>Active Match Number:</strong> <span id="currentRoomBadge">-</span></p>
+            <p><strong>Active Room Name:</strong> <span id="currentRoomNameBadge">-</span></p>
+            <p id="memberSummary">Members in this room: 0</p>
+          </section>
+          <section class="room-name-controls">
+            <label>
+              Room Name
+              <input id="roomNameInput" type="text" maxlength="60" placeholder="Example: Team Planning Room" />
+            </label>
+            <button id="saveRoomNameBtn" class="btn btn-soft" type="button">Save Room Name</button>
+          </section>
+          <p class="field-help">Tip: Number short rakho, share karna easy hota hai.</p>
+          <section class="recent-rooms">
+            <p class="recent-rooms-title">Recent Joined Rooms</p>
+            <div id="recentRoomsList" class="recent-rooms-list"></div>
+          </section>
+          <p id="roomError" class="inline-error" aria-live="polite"></p>
+
+          <section class="quick-actions">
+            <button id="generateBtn" class="btn">Generate</button>
+            <button id="joinBtn" class="btn btn-soft">Join</button>
+            <button id="copyRoomBtn" class="btn btn-soft">Copy Room</button>
+            <button id="copyBtn" class="btn btn-soft">Copy All</button>
+            <button id="clearBtn" class="btn btn-danger">Clear All</button>
+          </section>
+          <p class="field-help">Generate/Join ke baad Copy Room se number direct share kar dein.</p>
+
+          <p id="matchHint" class="hint">Generate number in one tab, then same number dusri tabs me use karo.</p>
+          <div id="status" class="status">Connecting...</div>
+
+          <h2 class="section-title">Shared Details</h2>
+          <label>
+            Shared Title
+            <input id="titleInput" type="text" maxlength="120" placeholder="Any heading or topic" />
+          </label>
+          <label>
+            Shared Link
+            <input id="linkInput" type="text" maxlength="300" placeholder="https://example.com" />
+          </label>
+          <label>
+            Category
+            <input id="categoryInput" type="text" maxlength="40" placeholder="general / work / personal" />
+          </label>
+          <label>
+            Priority
+            <select id="priorityInput">
+              <option value="low">Low</option>
+              <option value="normal" selected>Normal</option>
+              <option value="high">High</option>
+              <option value="urgent">Urgent</option>
+            </select>
+          </label>
+          <label>
+            Due Date
+            <input id="dueDateInput" type="date" />
+          </label>
+          <label>
+            Tags
+            <input id="tagsInput" type="text" maxlength="200" placeholder="design, todo, team" />
+          </label>
+          <label>
+            Shared Note
+            <textarea id="noteInput" class="mini-area" placeholder="Small notes also sync..." ></textarea>
+          </label>
+        </aside>
+
+        <section class="editor-panel">
+          <section class="media-panel">
+            <h2 class="section-title">Files Sharing</h2>
+            <label>
+              Share Files / Images / Videos
+              <input id="fileInput" type="file" multiple accept="image/*,video/*,.pdf,.doc,.docx,.txt,.zip" />
+            </label>
+            <p id="uploadError" class="inline-error" aria-live="polite"></p>
+            <div id="dropZone" class="drop-zone">Drag and drop files here</div>
+            <div class="upload-progress-wrap">
+              <div id="uploadProgressBar" class="upload-progress-bar"></div>
+            </div>
+            <p id="uploadProgressText" class="upload-progress-text">No upload in progress</p>
+            <p class="upload-progress-text">Tip: Video/Image upload ke baad card me View aur Download dono milenge.</p>
+            <div id="attachmentList" class="attachment-list"></div>
+          </section>
+
+          <label>
+            Shared Text
+            <textarea id="sharedText" placeholder="Type or paste text here..."></textarea>
+          </label>
+          <label>
+            Shared Code
+            <textarea id="codeInput" class="code-area" placeholder="Code snippet bhi realtime share hoga..."></textarea>
+          </label>
+
+          <section class="meta-grid">
+            <div class="meta-card">
+              <h2>Stats</h2>
+              <p id="stats">Characters: 0 | Words: 0 | Lines: 1</p>
+            </div>
+            <div class="meta-card">
+              <h2>Connection</h2>
+              <p id="roomInfo">Room: - | Online: 0</p>
+              <p id="lastUpdate">Last update: -</p>
+              <ul id="memberList" class="member-list"></ul>
+            </div>
+          </section>
+        </section>
+      </section>
+    </main>
+    <script src="app.js"></script>
+  </body>
+</html>
