@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Deploy public folder to PHP hosting via FTP
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
@@ -22,8 +22,10 @@ jobs:
           protocol: ftp
           local-dir: ./public/
           server-dir: ${{ secrets.FTP_TARGET_DIR }}
+          log-level: verbose
           exclude: |
             **/.git*
             **/.github/**
             **/node_modules/**
+            **/.htaccess
             storage/rooms.json
