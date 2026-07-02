@@ -13,6 +13,7 @@ const fileInput = document.getElementById("fileInput");
 const dropZone = document.getElementById("dropZone");
 const uploadProgressBar = document.getElementById("uploadProgressBar");
 const uploadProgressText = document.getElementById("uploadProgressText");
+const fileTransferStatusEl = document.getElementById("fileTransferStatus");
 const attachmentList = document.getElementById("attachmentList");
 const roomErrorEl = document.getElementById("roomError");
 const uploadErrorEl = document.getElementById("uploadError");
@@ -109,6 +110,14 @@ function showUploadError(message) {
   uploadErrorEl.textContent = message || "";
 }
 
+function setTransferStatus(message) {
+  if (!fileTransferStatusEl) {
+    return;
+  }
+
+  fileTransferStatusEl.textContent = message || "File transfer status: idle";
+}
+
 function safeParseMessage(raw) {
   try {
     return JSON.parse(raw);
@@ -169,7 +178,7 @@ function applyRoomState(message) {
   members = Array.isArray(message.members) ? message.members : [];
 
   if (message.shared && typeof message.shared === "object") {
-    setSharedFromMessage(message.shared);
+    setSharedFromMessage(message.shared, true, "remote");
   }
 
   touchRoomActivity(currentRoom);
@@ -554,6 +563,11 @@ function renderAttachmentList() {
     info.className = "attachment-info";
     info.textContent = `${item.name} (${formatBytes(item.size)})`;
 
+    const ownerBadge = document.createElement("span");
+    ownerBadge.className = "attachment-owner";
+    ownerBadge.textContent = item.ownerId === clientId ? "Sent by you" : "Received";
+    info.appendChild(ownerBadge);
+
     const actions = document.createElement("div");
     actions.className = "attachment-actions";
 
@@ -617,7 +631,10 @@ function renderAttachmentList() {
   });
 }
 
-function setSharedFromMessage(shared, persist = true) {
+function setSharedFromMessage(shared, persist = true, source = "remote") {
+  const previousAttachmentIds = new Set(sharedAttachments.map((item) => item.id));
+  const incomingAttachments = Array.isArray(shared.attachments) ? shared.attachments.slice(0, MAX_ATTACHMENTS) : [];
+
   applyingRemoteUpdate = true;
   titleInput.value = typeof shared.title === "string" ? shared.title : "";
   linkInput.value = typeof shared.link === "string" ? shared.link : "";
@@ -628,7 +645,7 @@ function setSharedFromMessage(shared, persist = true) {
   noteInput.value = typeof shared.note === "string" ? shared.note : "";
   textArea.value = typeof shared.text === "string" ? shared.text : "";
   codeInput.value = typeof shared.code === "string" ? shared.code : "";
-  sharedAttachments = Array.isArray(shared.attachments) ? shared.attachments.slice(0, MAX_ATTACHMENTS) : [];
+  sharedAttachments = incomingAttachments;
   applyingRemoteUpdate = false;
 
   renderAttachmentList();
@@ -636,6 +653,23 @@ function setSharedFromMessage(shared, persist = true) {
 
   if (persist && currentRoom) {
     cacheRoomShared(currentRoom, getSharedPayload(true));
+  }
+
+  if (source === "remote") {
+    const newFromOthers = incomingAttachments.filter(
+      (item) => !previousAttachmentIds.has(item.id) && item.ownerId && item.ownerId !== clientId
+    );
+    const deliveredMine = incomingAttachments.filter(
+      (item) => !previousAttachmentIds.has(item.id) && item.ownerId === clientId
+    );
+
+    if (newFromOthers.length > 0) {
+      const count = newFromOthers.length;
+      setTransferStatus(`File transfer status: received ${count} file(s)`);
+      setStatus(`Received ${count} new file(s)`, "info", 2500);
+    } else if (deliveredMine.length > 0) {
+      setTransferStatus("File transfer status: upload delivered to room");
+    }
   }
 }
 
@@ -751,7 +785,7 @@ async function joinCurrentRoom(source = "manual") {
   roomNameInput.value = currentRoomName;
 
   if (cachedShared) {
-    setSharedFromMessage(cachedShared, false);
+    setSharedFromMessage(cachedShared, false, "local");
   } else {
     // If no cache exists for selected room, show empty state until server sync arrives.
     setSharedFromMessage(
@@ -767,7 +801,8 @@ async function joinCurrentRoom(source = "manual") {
         code: "",
         attachments: [],
       },
-      false
+      false,
+      "local"
     );
   }
 
@@ -949,6 +984,7 @@ async function clearAllShared() {
   textArea.value = "";
   codeInput.value = "";
   sharedAttachments = [];
+  setTransferStatus("File transfer status: idle");
   removeRoomCache(selectedRoom);
   renderAttachmentList();
 
@@ -998,6 +1034,7 @@ async function processFiles(fileList) {
   if (!currentRoom) {
     showUploadError("Join room first to upload files");
     setStatus("Join room first, then upload files", "error", 2200);
+    setTransferStatus("File transfer status: failed (room not joined)");
     return;
   }
 
@@ -1019,6 +1056,7 @@ async function processFiles(fileList) {
 
     uploadProgressBar.style.width = "0%";
     uploadProgressText.textContent = `Preparing ${file.name}...`;
+    setTransferStatus(`File transfer status: sending ${file.name}...`);
 
     try {
       const attachment = await readFileAsDataUrl(file);
@@ -1026,6 +1064,7 @@ async function processFiles(fileList) {
 
       if (!added) {
         failedCount += 1;
+        setTransferStatus(`File transfer status: failed to send ${file.name}`);
         continue;
       }
 
@@ -1042,10 +1081,13 @@ async function processFiles(fileList) {
 
   if (uploadedCount > 0 && failedCount === 0) {
     setStatus(`${uploadedCount} file(s) shared successfully`, "success", 2200);
+    setTransferStatus(`File transfer status: sent ${uploadedCount} file(s)`);
   } else if (uploadedCount > 0 && failedCount > 0) {
     setStatus(`${uploadedCount} uploaded, ${failedCount} failed`, "info", 2500);
+    setTransferStatus(`File transfer status: ${uploadedCount} sent, ${failedCount} failed`);
   } else if (failedCount > 0) {
     setStatus("File upload failed. Please try again.", "error", 2500);
+    setTransferStatus("File transfer status: failed");
   }
 
   if (files.length === 0) {
@@ -1096,7 +1138,7 @@ roomInput.addEventListener("input", () => {
     currentRoomName = roomNameInput.value;
     const cachedShared = getCachedRoomShared(normalized);
     if (cachedShared && !currentRoom) {
-      setSharedFromMessage(cachedShared, false);
+      setSharedFromMessage(cachedShared, false, "local");
       setStatus("Cached room data loaded (local)", "info", 2200);
     }
   }
@@ -1184,7 +1226,8 @@ if (lastRoom) {
   currentRoomName = roomNameInput.value;
   const cachedShared = getCachedRoomShared(lastRoom);
   if (cachedShared) {
-    setSharedFromMessage(cachedShared, false);
+    setSharedFromMessage(cachedShared, false, "local");
+    setTransferStatus("File transfer status: restored from cache");
     setStatus("Previous room cache restored. Join press karke sync continue karein.", "info", 2600);
   }
 }
