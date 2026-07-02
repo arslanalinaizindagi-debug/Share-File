@@ -58,6 +58,7 @@ let currentRoomName = "";
 let connectionReady = false;
 let pollTimer = null;
 let pollInFlight = false;
+let reconnectTimer = null;
 
 function setStatus(message, type = "info", autoResetMs = 0) {
   statusEl.textContent = message || "";
@@ -200,9 +201,36 @@ async function pollCurrentRoom() {
     applyRoomState(payload);
   } catch (error) {
     setStatus("Sync issue. Retrying...", "error", 2200);
+    scheduleReconnect();
   } finally {
     pollInFlight = false;
   }
+}
+
+function scheduleReconnect(delayMs = 1600) {
+  if (reconnectTimer || !currentRoom) {
+    return;
+  }
+
+  reconnectTimer = setTimeout(async () => {
+    reconnectTimer = null;
+
+    try {
+      await apiRequest("ping", {}, "GET");
+
+      if (!currentRoom) {
+        return;
+      }
+
+      const payload = await apiRequest("join", { room: currentRoom, clientId });
+      applyRoomState(payload);
+      startPolling();
+      setStatus("Reconnected", "success", 1800);
+    } catch (error) {
+      setStatus("Sync issue. Retrying...", "error", 2200);
+      scheduleReconnect(2500);
+    }
+  }, delayMs);
 }
 
 function startPolling() {
@@ -695,7 +723,8 @@ function updateStats() {
 }
 
 function renderRoomInfo() {
-  roomInfoEl.textContent = `Room: ${currentRoom || "-"} | Online: ${onlineCount}`;
+  const visibleOnline = currentRoom && connectionReady ? Math.max(onlineCount, members.length, 1) : onlineCount;
+  roomInfoEl.textContent = `Room: ${currentRoom || "-"} | Online: ${visibleOnline}`;
 
   if (currentRoomBadgeEl) {
     const selectedRoom = normalizeRoom(roomInput.value);
