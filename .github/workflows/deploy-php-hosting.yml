@@ -22,6 +22,7 @@ jobs:
           protocol: ftp
           local-dir: ./public/
           server-dir: ${{ secrets.FTP_TARGET_DIR }}
+          state-name: ftp-deploy-sync-state.json
           log-level: verbose
           exclude: |
             **/.git*
