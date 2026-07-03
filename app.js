@@ -244,6 +244,12 @@ function applyRoomState(message) {
     return;
   }
 
+  const incomingRoom = normalizeRoom(message.room || "");
+  const typedRoom = normalizeRoom(roomInput.value);
+  if (!currentRoom && !typedRoom && incomingRoom) {
+    return;
+  }
+
   currentRoom = normalizeRoom(message.room || currentRoom);
   roomInput.value = currentRoom;
   currentRoomName = normalizeRoomName(currentRoom, message.roomName || currentRoomName || "");
@@ -1282,6 +1288,28 @@ roomInput.addEventListener("input", () => {
   const normalized = normalizeRoom(roomInput.value);
   if (roomInput.value !== normalized) {
     roomInput.value = normalized;
+  }
+
+  if (!normalized) {
+    if (currentRoom) {
+      stopPolling();
+      currentRoom = "";
+      currentRoomName = "";
+      members = [];
+      onlineCount = 0;
+      pendingAutoJoinRoom = "";
+      saveLastRoom("");
+      showRoomError("");
+      setLastUpdate(null);
+      renderMembers();
+      renderRoomInfo();
+      setStatus("Room cleared. New match number enter ya generate karo.", "info", 2200);
+    } else {
+      pendingAutoJoinRoom = "";
+      saveLastRoom("");
+    }
+    updateActionAvailability();
+    return;
   }
 
   if (normalized) {
