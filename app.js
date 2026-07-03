@@ -61,6 +61,7 @@ let pollTimer = null;
 let pollInFlight = false;
 let reconnectTimer = null;
 let hasPendingChanges = false;
+let pendingAutoJoinRoom = "";
 
 function setStatus(message, type = "info", autoResetMs = 0) {
   statusEl.textContent = message || "";
@@ -1035,7 +1036,15 @@ async function connect() {
     updateActionAvailability();
     matchHintEl.textContent = "Generate number, phir Join press karke room enter karo.";
 
-    if (currentRoom) {
+    if (pendingAutoJoinRoom && !currentRoom) {
+      roomInput.value = pendingAutoJoinRoom;
+      const roomToJoin = pendingAutoJoinRoom;
+      pendingAutoJoinRoom = "";
+      await joinCurrentRoom("auto");
+      if (currentRoom === roomToJoin) {
+        setStatus(`Auto joined room: ${roomToJoin}`, "success", 2200);
+      }
+    } else if (currentRoom) {
       startPolling();
     }
   } catch (error) {
@@ -1311,6 +1320,7 @@ pruneExpiredRoomCache();
 
 const lastRoom = getLastRoom();
 if (lastRoom) {
+  pendingAutoJoinRoom = lastRoom;
   roomInput.value = lastRoom;
   const cachedRoomName = getCachedRoomName(lastRoom);
   roomNameInput.value = cachedRoomName || normalizeRoomName(lastRoom, "");
