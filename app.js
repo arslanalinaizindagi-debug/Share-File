@@ -893,6 +893,14 @@ async function joinCurrentRoom(source = "manual") {
   try {
     response = await apiRequest("join", { room: currentRoom, clientId });
   } catch (error) {
+    if (source === "auto") {
+      pendingAutoJoinRoom = targetRoom;
+    }
+    currentRoom = "";
+    onlineCount = 0;
+    members = [];
+    renderRoomInfo();
+    renderMembers();
     showRoomError("Failed to join room");
     setStatus("Failed to join room", "error", 2200);
     return;
@@ -1039,10 +1047,12 @@ async function connect() {
     if (pendingAutoJoinRoom && !currentRoom) {
       roomInput.value = pendingAutoJoinRoom;
       const roomToJoin = pendingAutoJoinRoom;
-      pendingAutoJoinRoom = "";
       await joinCurrentRoom("auto");
       if (currentRoom === roomToJoin) {
+        pendingAutoJoinRoom = "";
         setStatus(`Auto joined room: ${roomToJoin}`, "success", 2200);
+      } else {
+        scheduleReconnect(1800);
       }
     } else if (currentRoom) {
       startPolling();
