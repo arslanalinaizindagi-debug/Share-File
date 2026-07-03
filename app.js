@@ -67,6 +67,8 @@ let autoSendTimer = null;
 let pendingChangedAt = 0;
 let sendingInProgress = false;
 let shouldAutoRejoin = false;
+let userEditingRoomInput = false;
+let userEditingRoomName = false;
 
 function setStatus(message, type = "info", autoResetMs = 0) {
   statusEl.textContent = message || "";
@@ -255,9 +257,13 @@ function applyRoomState(message) {
   }
 
   currentRoom = normalizeRoom(message.room || currentRoom);
-  roomInput.value = currentRoom;
+  if (!userEditingRoomInput) {
+    roomInput.value = currentRoom;
+  }
   currentRoomName = normalizeRoomName(currentRoom, message.roomName || currentRoomName || "");
-  roomNameInput.value = currentRoomName;
+  if (!userEditingRoomName) {
+    roomNameInput.value = currentRoomName;
+  }
   cacheRoomName(currentRoom, currentRoomName);
   onlineCount = Number(message.online) || 0;
   members = Array.isArray(message.members) ? message.members : [];
@@ -1293,6 +1299,14 @@ roomInput.addEventListener("keydown", (event) => {
   }
 });
 
+roomInput.addEventListener("focus", () => {
+  userEditingRoomInput = true;
+});
+
+roomInput.addEventListener("blur", () => {
+  userEditingRoomInput = false;
+});
+
 roomInput.addEventListener("input", () => {
   const normalized = normalizeRoom(roomInput.value);
   if (roomInput.value !== normalized) {
@@ -1324,9 +1338,11 @@ roomInput.addEventListener("input", () => {
 
   if (normalized) {
     saveLastRoom(normalized);
-    const cachedRoomName = getCachedRoomName(normalized);
-    roomNameInput.value = cachedRoomName || normalizeRoomName(normalized, "");
-    currentRoomName = roomNameInput.value;
+    if (!userEditingRoomName && !currentRoom) {
+      const cachedRoomName = getCachedRoomName(normalized);
+      roomNameInput.value = cachedRoomName || normalizeRoomName(normalized, "");
+      currentRoomName = roomNameInput.value;
+    }
     const cachedShared = getCachedRoomShared(normalized);
     if (cachedShared && !currentRoom) {
       setSharedFromMessage(cachedShared, false, "local");
@@ -1338,6 +1354,14 @@ roomInput.addEventListener("input", () => {
 });
 
 saveRoomNameBtn.addEventListener("click", sendRoomNameUpdate);
+roomNameInput.addEventListener("focus", () => {
+  userEditingRoomName = true;
+});
+
+roomNameInput.addEventListener("blur", () => {
+  userEditingRoomName = false;
+});
+
 roomNameInput.addEventListener("keydown", (event) => {
   if (event.key === "Enter") {
     void sendRoomNameUpdate();
