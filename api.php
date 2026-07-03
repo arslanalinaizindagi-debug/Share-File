@@ -24,11 +24,15 @@ if (!is_array($input)) {
 
 try {
     $response = withState($stateFile, function (array &$state) use ($action, $input): array {
-        cleanupExpiredMembers($state);
+        $membersPruned = cleanupExpiredMembers($state);
 
         switch ($action) {
             case 'ping':
-                return ['ok' => true, 'message' => 'pong'];
+                return [
+                    'ok' => true,
+                    'message' => 'pong',
+                    '__stateChanged' => $membersPruned,
+                ];
 
             case 'generate_match':
                 $roomId = generateUniqueRoomCode($state['rooms']);
@@ -48,8 +52,10 @@ try {
                 }
 
                 ensureRoomExists($state, $roomId);
-                touchMember($state['rooms'][$roomId], $clientId);
-                return buildRoomPayload($roomId, $state['rooms'][$roomId]);
+                $memberTouched = touchMember($state['rooms'][$roomId], $clientId);
+                $payload = buildRoomPayload($roomId, $state['rooms'][$roomId]);
+                $payload['__stateChanged'] = $membersPruned || $memberTouched;
+                return $payload;
 
             case 'update':
                 $roomId = normalizeRoom($input['room'] ?? '');
@@ -177,15 +183,18 @@ function withState(string $stateFile, callable $callback): array
             $state = ['rooms' => []];
         }
 
-        $beforeWrite = json_encode($state, JSON_UNESCAPED_SLASHES);
-
         $response = $callback($state);
+        $stateChanged = true;
+        if (is_array($response) && array_key_exists('__stateChanged', $response)) {
+            $stateChanged = (bool) $response['__stateChanged'];
+            unset($response['__stateChanged']);
+        }
 
-        $afterWrite = json_encode($state, JSON_UNESCAPED_SLASHES);
-        if ($beforeWrite !== $afterWrite) {
+        if ($stateChanged) {
+            $encoded = json_encode($state, JSON_UNESCAPED_SLASHES);
             ftruncate($handle, 0);
             rewind($handle);
-            fwrite($handle, $afterWrite === false ? '{"rooms":[]}' : $afterWrite);
+            fwrite($handle, $encoded === false ? '{"rooms":[]}' : $encoded);
             fflush($handle);
         }
         flock($handle, LOCK_UN);
@@ -292,7 +301,7 @@ function generateUniqueRoomCode(array $rooms): string
     return substr((string) time(), -6);
 }
 
-function touchMember(array &$room, string $clientId): void
+function touchMember(array &$room, string $clientId): bool
 {
     $now = time();
     $existing = isset($room['members'][$clientId]) && is_array($room['members'][$clientId])
@@ -301,7 +310,7 @@ function touchMember(array &$room, string $clientId): void
 
     $lastSeenAt = $existing !== null && isset($existing['lastSeenAt']) ? (int) $existing['lastSeenAt'] : 0;
     if ($existing !== null && ($now - $lastSeenAt) < MEMBER_HEARTBEAT_SECONDS) {
-        return;
+        return false;
     }
 
     $room['members'][$clientId] = [
@@ -311,14 +320,18 @@ function touchMember(array &$room, string $clientId): void
             : 'Member-' . substr($clientId, -4),
         'lastSeenAt' => $now,
     ];
+
+    return true;
 }
 
-function cleanupExpiredMembers(array &$state): void
+function cleanupExpiredMembers(array &$state): bool
 {
+    $changed = false;
     $now = time();
     foreach ($state['rooms'] as &$room) {
         if (!isset($room['members']) || !is_array($room['members'])) {
             $room['members'] = [];
+            $changed = true;
             continue;
         }
 
@@ -326,10 +339,13 @@ function cleanupExpiredMembers(array &$state): void
             $lastSeenAt = isset($member['lastSeenAt']) ? (int) $member['lastSeenAt'] : 0;
             if ($lastSeenAt <= 0 || ($now - $lastSeenAt) > MEMBER_TTL_SECONDS) {
                 unset($room['members'][$memberId]);
+                $changed = true;
             }
         }
     }
     unset($room);
+
+    return $changed;
 }
 
 function getRoomMembers(array $room): array

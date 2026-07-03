@@ -44,7 +44,7 @@ const ROOM_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 const MAX_ATTACHMENTS = 12;
 const MAX_ATTACHMENT_BYTES = 30 * 1024 * 1024;
 const ROOM_NAME_MAX_LENGTH = 60;
-const POLL_INTERVAL_MS = 2000;
+const POLL_INTERVAL_MS = 900;
 
 let applyingRemoteUpdate = false;
 let currentRoom = "";
@@ -271,6 +271,8 @@ function startPolling() {
   if (!currentRoom) {
     return;
   }
+
+  void pollCurrentRoom();
 
   pollTimer = setInterval(() => {
     void pollCurrentRoom();
