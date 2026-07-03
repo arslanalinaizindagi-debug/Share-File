@@ -23,6 +23,7 @@ const generateBtn = document.getElementById("generateBtn");
 const copyRoomBtn = document.getElementById("copyRoomBtn");
 const copyBtn = document.getElementById("copyBtn");
 const clearBtn = document.getElementById("clearBtn");
+const sendUpdateBtn = document.getElementById("sendUpdateBtn");
 const roomNameInput = document.getElementById("roomNameInput");
 const saveRoomNameBtn = document.getElementById("saveRoomNameBtn");
 const statsEl = document.getElementById("stats");
@@ -59,6 +60,7 @@ let connectionReady = false;
 let pollTimer = null;
 let pollInFlight = false;
 let reconnectTimer = null;
+let hasPendingChanges = false;
 
 function setStatus(message, type = "info", autoResetMs = 0) {
   statusEl.textContent = message || "";
@@ -101,6 +103,34 @@ function updateActionAvailability() {
   copyBtn.disabled = !hasRoomInput;
   clearBtn.disabled = !hasRoomInput;
   saveRoomNameBtn.disabled = !connected || !currentRoom;
+  if (sendUpdateBtn) {
+    sendUpdateBtn.disabled = !connected || !currentRoom || !hasPendingChanges;
+  }
+}
+
+function markPendingChanges(message = "Changes ready. Send dabao.") {
+  if (applyingRemoteUpdate) {
+    return;
+  }
+
+  const wasPending = hasPendingChanges;
+  hasPendingChanges = true;
+
+  const cacheRoom = currentRoom || normalizeRoom(roomInput.value);
+  if (cacheRoom) {
+    cacheRoomShared(cacheRoom, getSharedPayload(true));
+  }
+
+  if (!wasPending && message) {
+    setStatus(message, "info", 1800);
+  }
+
+  updateActionAvailability();
+}
+
+function clearPendingChanges() {
+  hasPendingChanges = false;
+  updateActionAvailability();
 }
 
 function showRoomError(message) {
@@ -178,7 +208,7 @@ function applyRoomState(message) {
   onlineCount = Number(message.online) || 0;
   members = Array.isArray(message.members) ? message.members : [];
 
-  if (message.shared && typeof message.shared === "object") {
+  if (message.shared && typeof message.shared === "object" && !hasPendingChanges) {
     setSharedFromMessage(message.shared, true, "remote");
   }
 
@@ -593,7 +623,11 @@ function renderAttachmentList() {
 
     const ownerBadge = document.createElement("span");
     ownerBadge.className = "attachment-owner";
-    ownerBadge.textContent = item.ownerId === clientId ? "Sent by you" : "Received";
+    if (item.ownerId === clientId) {
+      ownerBadge.textContent = item.pending ? "Ready to send" : "Sent by you";
+    } else {
+      ownerBadge.textContent = "Received";
+    }
     info.appendChild(ownerBadge);
 
     const actions = document.createElement("div");
@@ -619,6 +653,14 @@ function renderAttachmentList() {
     removeBtn.addEventListener("click", async () => {
       if (item.ownerId !== clientId) {
         setStatus("Sirf uploader hi delete kar sakta hai", "error", 2200);
+        return;
+      }
+
+      if (item.pending) {
+        sharedAttachments = sharedAttachments.filter((_, i) => i !== index);
+        renderAttachmentList();
+        updateStats();
+        markPendingChanges("Pending file removed. Send dabao.");
         return;
       }
 
@@ -673,8 +715,9 @@ function setSharedFromMessage(shared, persist = true, source = "remote") {
   noteInput.value = typeof shared.note === "string" ? shared.note : "";
   textArea.value = typeof shared.text === "string" ? shared.text : "";
   codeInput.value = typeof shared.code === "string" ? shared.code : "";
-  sharedAttachments = incomingAttachments;
+  sharedAttachments = incomingAttachments.map((item) => ({ ...item, pending: false }));
   applyingRemoteUpdate = false;
+  clearPendingChanges();
 
   renderAttachmentList();
   updateStats();
@@ -805,6 +848,8 @@ async function joinCurrentRoom(source = "manual") {
     return;
   }
 
+  clearPendingChanges();
+
   currentRoom = targetRoom;
   showRoomError("");
 
@@ -891,17 +936,28 @@ async function sendSharedUpdate(includeAttachments = false) {
   }
 
   if (applyingRemoteUpdate || !currentRoom) {
-    return;
+    return false;
   }
 
   try {
-    await apiRequest("update", {
+    const payload = await apiRequest("update", {
       room: currentRoom,
       clientId,
       shared: getSharedPayload(includeAttachments),
     });
+
+    if (payload && typeof payload === "object") {
+      applyRoomState(payload);
+    }
+
+    sharedAttachments = sharedAttachments.map((item) => ({ ...item, pending: false }));
+    clearPendingChanges();
+    setStatus("Changes sent", "success", 2000);
+    setTransferStatus("File transfer status: sent");
+    return true;
   } catch (error) {
     setStatus("Failed to save latest changes", "error", 2200);
+    return false;
   }
 }
 
@@ -1018,8 +1074,10 @@ async function clearAllShared() {
   renderAttachmentList();
 
   if (currentRoom) {
-    await sendSharedUpdate(true);
-    setStatus("Room content cleared", "success", 2200);
+    const sent = await sendSharedUpdate(true);
+    if (sent) {
+      setStatus("Room content cleared", "success", 2200);
+    }
   } else {
     updateStats();
     setStatus("Local cached room data cleared", "success", 2200);
@@ -1089,15 +1147,7 @@ async function processFiles(fileList) {
 
     try {
       const attachment = await readFileAsDataUrl(file);
-      const added = await sendAttachmentAdd(attachment);
-
-      if (!added) {
-        failedCount += 1;
-        setTransferStatus(`File transfer status: failed to send ${file.name}`);
-        continue;
-      }
-
-      sharedAttachments.push(attachment);
+      sharedAttachments.push({ ...attachment, pending: true });
       uploadedCount += 1;
     } catch (error) {
       showUploadError(`Failed to add ${file.name}`);
@@ -1109,11 +1159,11 @@ async function processFiles(fileList) {
   updateStats();
 
   if (uploadedCount > 0 && failedCount === 0) {
-    setStatus(`${uploadedCount} file(s) shared successfully`, "success", 2200);
-    setTransferStatus(`File transfer status: sent ${uploadedCount} file(s)`);
+    setTransferStatus(`File transfer status: ready to send ${uploadedCount} file(s)`);
+    markPendingChanges(`${uploadedCount} file(s) ready. Send dabao.`);
   } else if (uploadedCount > 0 && failedCount > 0) {
-    setStatus(`${uploadedCount} uploaded, ${failedCount} failed`, "info", 2500);
-    setTransferStatus(`File transfer status: ${uploadedCount} sent, ${failedCount} failed`);
+    setTransferStatus(`File transfer status: ${uploadedCount} ready, ${failedCount} failed`);
+    markPendingChanges(`${uploadedCount} file(s) ready, ${failedCount} failed. Send dabao.`);
   } else if (failedCount > 0) {
     setStatus("File upload failed. Please try again.", "error", 2500);
     setTransferStatus("File transfer status: failed");
@@ -1184,9 +1234,20 @@ roomNameInput.addEventListener("keydown", (event) => {
 
 [titleInput, linkInput, categoryInput, priorityInput, dueDateInput, tagsInput, noteInput, textArea, codeInput].forEach((el) => {
   el.addEventListener("input", () => {
-    void sendSharedUpdate();
+    updateStats();
+    markPendingChanges("");
   });
 });
+
+if (sendUpdateBtn) {
+  sendUpdateBtn.addEventListener("click", async () => {
+    const sent = await sendSharedUpdate(true);
+    if (sent) {
+      uploadProgressText.textContent = "No upload in progress";
+      uploadProgressBar.style.width = "0%";
+    }
+  });
+}
 
 fileInput.addEventListener("change", async () => {
   await processFiles(fileInput.files);

@@ -413,6 +413,16 @@ textarea:focus {
   min-height: 140px;
 }
 
+.send-actions {
+  margin-top: 8px;
+  display: grid;
+  gap: 6px;
+}
+
+.send-actions .btn {
+  width: 160px;
+}
+
 .meta-grid {
   margin-top: 8px;
   display: grid;
