@@ -37,6 +37,13 @@ body {
   animation: popIn 300ms ease-out;
 }
 
+.container > h1,
+.container > .subtitle,
+.container > .onboarding,
+.container > .workspace-grid {
+  min-height: 0;
+}
+
 h1 {
   margin: 0;
   font-size: clamp(1.3rem, 2vw, 1.9rem);
@@ -509,5 +516,111 @@ textarea:focus {
 
   #sharedText {
     min-height: 180px;
+  }
+}
+
+@media (min-width: 1100px) {
+  body {
+    padding: 10px;
+    overflow: hidden;
+  }
+
+  .container {
+    width: min(1560px, 100%);
+    height: calc(100vh - 20px);
+    padding: 10px;
+    border-radius: 14px;
+    display: grid;
+    grid-template-rows: auto auto auto minmax(0, 1fr);
+    gap: 6px;
+  }
+
+  h1 {
+    font-size: 1.35rem;
+  }
+
+  .subtitle {
+    margin-top: 2px;
+    font-size: 0.82rem;
+  }
+
+  .onboarding {
+    margin-top: 4px;
+    gap: 6px;
+  }
+
+  .step-card {
+    padding: 7px;
+  }
+
+  .step-card h2 {
+    margin-top: 6px;
+    font-size: 0.84rem;
+  }
+
+  .step-card p {
+    font-size: 0.74rem;
+  }
+
+  .workspace-grid {
+    margin-top: 0;
+    grid-template-columns: 320px 1fr;
+    gap: 8px;
+    align-items: stretch;
+    min-height: 0;
+  }
+
+  .panel,
+  .editor-panel {
+    padding: 8px;
+    border-radius: 10px;
+    min-height: 0;
+    overflow: auto;
+  }
+
+  label {
+    margin-top: 6px;
+    gap: 4px;
+    font-size: 0.8rem;
+  }
+
+  input,
+  select,
+  textarea {
+    padding: 6px 8px;
+  }
+
+  #sharedText {
+    min-height: 130px;
+  }
+
+  .code-area {
+    min-height: 92px;
+  }
+
+  .mini-area {
+    min-height: 54px;
+  }
+
+  .media-panel {
+    margin-bottom: 6px;
+    padding: 7px;
+  }
+
+  .attachment-list {
+    max-height: 180px;
+  }
+
+  .btn {
+    padding: 6px 8px;
+    font-size: 0.78rem;
+  }
+
+  .meta-grid {
+    gap: 6px;
+  }
+
+  .meta-card {
+    padding: 6px;
   }
 }
