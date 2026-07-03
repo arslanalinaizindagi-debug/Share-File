@@ -27,14 +27,14 @@ GitHub + Live Domain Auto Deploy Steps
 6. The workflow file already exists here:
    .github/workflows/deploy-php-hosting.yml
 
-7. After secrets are added, every push to main will upload the public/ folder to hosting.
+7. After secrets are added, every push to main will upload website files from repository root to hosting.
 
 8. Important:
    - storage/rooms.json is excluded from deploy, so live room data will not be overwritten on every push.
    - If your hosting requires FTPS instead of FTP, change protocol in the workflow.
 
 9. First live test:
-   - Make a small text change in public/index.html
+   - Make a small text change in index.html
    - git add .
    - git commit -m "Test deploy"
    - git push

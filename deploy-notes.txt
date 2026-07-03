@@ -1,2 +1,2 @@
 Node/WebSocket server.js is no longer required for PHP hosting.
-Use public/api.php + app.js + storage/ on PHP hosting.
+Use api.php + app.js + storage/ on PHP hosting.

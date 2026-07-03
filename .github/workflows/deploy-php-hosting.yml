@@ -13,14 +13,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
-      - name: Deploy public folder to PHP hosting via FTP
+      - name: Deploy website files to PHP hosting via FTP
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.FTP_SERVER }}
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
           protocol: ftp
-          local-dir: ./public/
+          local-dir: ./
           server-dir: ${{ secrets.FTP_TARGET_DIR }}
           state-name: ftp-deploy-sync-state.json
           log-level: verbose
@@ -28,5 +28,9 @@ jobs:
             **/.git*
             **/.github/**
             **/node_modules/**
+            public/**
+            README*.md
+            *.txt
+            php-hosting-upload.zip
             **/.htaccess
             storage/rooms.json

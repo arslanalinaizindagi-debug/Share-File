@@ -4,4 +4,4 @@ php-hosting-upload.zip
 .env
 .DS_Store
 Thumbs.db
-public/storage/rooms.json
+storage/rooms.json
