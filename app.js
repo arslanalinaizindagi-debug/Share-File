@@ -184,6 +184,7 @@ async function apiRequest(action, payload = {}, method = "POST") {
   } catch (error) {
     connectionReady = false;
     updateActionAvailability();
+    scheduleReconnect(1600);
     throw error;
   }
 }
@@ -238,7 +239,7 @@ async function pollCurrentRoom() {
 }
 
 function scheduleReconnect(delayMs = 1600) {
-  if (reconnectTimer || !currentRoom) {
+  if (reconnectTimer) {
     return;
   }
 
@@ -248,14 +249,14 @@ function scheduleReconnect(delayMs = 1600) {
     try {
       await apiRequest("ping", {}, "GET");
 
-      if (!currentRoom) {
-        return;
+      if (currentRoom) {
+        const payload = await apiRequest("join", { room: currentRoom, clientId });
+        applyRoomState(payload);
+        startPolling();
+        setStatus("Reconnected", "success", 1800);
+      } else {
+        setStatus("Connected", "success", 1500);
       }
-
-      const payload = await apiRequest("join", { room: currentRoom, clientId });
-      applyRoomState(payload);
-      startPolling();
-      setStatus("Reconnected", "success", 1800);
     } catch (error) {
       setStatus("Sync issue. Retrying...", "error", 2200);
       scheduleReconnect(2500);
@@ -1041,7 +1042,7 @@ async function connect() {
     connectionReady = false;
     setStatus("PHP server unavailable. Retrying...", "error");
     updateActionAvailability();
-    setTimeout(connect, 1500);
+    scheduleReconnect(1500);
   }
 }
 
