@@ -66,6 +66,7 @@ let pendingAutoJoinRoom = "";
 let autoSendTimer = null;
 let pendingChangedAt = 0;
 let sendingInProgress = false;
+let shouldAutoRejoin = false;
 
 function setStatus(message, type = "info", autoResetMs = 0) {
   statusEl.textContent = message || "";
@@ -225,6 +226,9 @@ async function apiRequest(action, payload = {}, method = "POST") {
     updateActionAvailability();
     return data;
   } catch (error) {
+    if (connectionReady && currentRoom) {
+      shouldAutoRejoin = true;
+    }
     connectionReady = false;
     updateActionAvailability();
     scheduleReconnect(1600);
@@ -302,12 +306,16 @@ function scheduleReconnect(delayMs = 1600) {
     try {
       await apiRequest("ping", {}, "GET");
 
-      if (currentRoom) {
+      if (shouldAutoRejoin && currentRoom) {
         const payload = await apiRequest("join", { room: currentRoom, clientId });
         applyRoomState(payload);
         startPolling();
+        shouldAutoRejoin = false;
         setStatus("Reconnected", "success", 1800);
       } else {
+        if (!currentRoom) {
+          shouldAutoRejoin = false;
+        }
         setStatus("Connected", "success", 1500);
       }
     } catch (error) {
@@ -904,6 +912,7 @@ async function joinCurrentRoom(source = "manual") {
     return;
   }
 
+  shouldAutoRejoin = false;
   clearPendingChanges();
 
   currentRoom = targetRoom;
@@ -1298,6 +1307,7 @@ roomInput.addEventListener("input", () => {
       members = [];
       onlineCount = 0;
       pendingAutoJoinRoom = "";
+      shouldAutoRejoin = false;
       saveLastRoom("");
       showRoomError("");
       setLastUpdate(null);
