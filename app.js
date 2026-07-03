@@ -45,6 +45,7 @@ const MAX_ATTACHMENTS = 12;
 const MAX_ATTACHMENT_BYTES = 30 * 1024 * 1024;
 const ROOM_NAME_MAX_LENGTH = 60;
 const POLL_INTERVAL_MS = 900;
+const AUTO_SEND_INTERVAL_MS = 1200;
 
 let applyingRemoteUpdate = false;
 let currentRoom = "";
@@ -62,6 +63,9 @@ let pollInFlight = false;
 let reconnectTimer = null;
 let hasPendingChanges = false;
 let pendingAutoJoinRoom = "";
+let autoSendTimer = null;
+let pendingChangedAt = 0;
+let sendingInProgress = false;
 
 function setStatus(message, type = "info", autoResetMs = 0) {
   statusEl.textContent = message || "";
@@ -116,6 +120,7 @@ function markPendingChanges(message = "Changes ready. Send dabao.") {
 
   const wasPending = hasPendingChanges;
   hasPendingChanges = true;
+  pendingChangedAt = Date.now();
 
   const cacheRoom = currentRoom || normalizeRoom(roomInput.value);
   if (cacheRoom) {
@@ -126,12 +131,49 @@ function markPendingChanges(message = "Changes ready. Send dabao.") {
     setStatus(message, "info", 1800);
   }
 
+  ensureAutoSendTimer();
   updateActionAvailability();
 }
 
 function clearPendingChanges() {
   hasPendingChanges = false;
+  pendingChangedAt = 0;
+  if (autoSendTimer) {
+    clearInterval(autoSendTimer);
+    autoSendTimer = null;
+  }
   updateActionAvailability();
+}
+
+function ensureAutoSendTimer() {
+  if (autoSendTimer) {
+    return;
+  }
+
+  autoSendTimer = setInterval(() => {
+    void maybeAutoSendPending();
+  }, AUTO_SEND_INTERVAL_MS);
+}
+
+async function maybeAutoSendPending() {
+  if (!hasPendingChanges || !currentRoom || !connectionReady || sendingInProgress) {
+    return;
+  }
+
+  const idleForMs = Date.now() - pendingChangedAt;
+  if (idleForMs < 600) {
+    return;
+  }
+
+  sendingInProgress = true;
+  try {
+    const sent = await sendSharedUpdate(true, { silent: true });
+    if (sent) {
+      await pollCurrentRoom();
+    }
+  } finally {
+    sendingInProgress = false;
+  }
 }
 
 function showRoomError(message) {
@@ -210,8 +252,12 @@ function applyRoomState(message) {
   onlineCount = Number(message.online) || 0;
   members = Array.isArray(message.members) ? message.members : [];
 
-  if (message.shared && typeof message.shared === "object" && !hasPendingChanges) {
-    setSharedFromMessage(message.shared, true, "remote");
+  if (message.shared && typeof message.shared === "object") {
+    if (hasPendingChanges) {
+      void maybeAutoSendPending();
+    } else {
+      setSharedFromMessage(message.shared, true, "remote");
+    }
   }
 
   touchRoomActivity(currentRoom);
@@ -939,7 +985,8 @@ async function requestUniqueRoom() {
   }
 }
 
-async function sendSharedUpdate(includeAttachments = false) {
+async function sendSharedUpdate(includeAttachments = false, options = {}) {
+  const silent = Boolean(options.silent);
   updateStats();
 
   const cacheRoom = currentRoom || normalizeRoom(roomInput.value);
@@ -958,17 +1005,22 @@ async function sendSharedUpdate(includeAttachments = false) {
       shared: getSharedPayload(includeAttachments),
     });
 
+    sharedAttachments = sharedAttachments.map((item) => ({ ...item, pending: false }));
+    clearPendingChanges();
+
     if (payload && typeof payload === "object") {
       applyRoomState(payload);
     }
 
-    sharedAttachments = sharedAttachments.map((item) => ({ ...item, pending: false }));
-    clearPendingChanges();
-    setStatus("Changes sent", "success", 2000);
-    setTransferStatus("File transfer status: sent");
+    if (!silent) {
+      setStatus("Changes sent", "success", 2000);
+      setTransferStatus("File transfer status: sent");
+    }
     return true;
   } catch (error) {
-    setStatus("Failed to save latest changes", "error", 2200);
+    if (!silent) {
+      setStatus("Failed to save latest changes", "error", 2200);
+    }
     return false;
   }
 }
